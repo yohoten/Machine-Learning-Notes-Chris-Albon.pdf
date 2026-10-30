@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机器学习笔记 · Machine Learning Notes — Chris Albon</title>
+<meta name="description" content="Chris Albon 机器学习笔记（Machine Learning Notes）在线横版 PDF 阅读器，基于 PDF.js，支持目录导航、缩放、全屏与键盘操作。">
+<style>
+:root{
+  --bg:#15171a;
+  --stage:#0e0f11;
+  --panel:#1e2126;
+  --panel-2:#262a31;
+  --border:#30353d;
+  --text:#e8eaed;
+  --text-dim:#9aa3ad;
+  --accent:#4d8dff;
+  --accent-soft:rgba(77,141,255,.16);
+  --hover:rgba(255,255,255,.07);
+  --shadow:0 8px 30px rgba(0,0,0,.45);
+}
+html.light{
+  --bg:#f2f3f5;
+  --stage:#e6e8eb;
+  --panel:#ffffff;
+  --panel-2:#f4f6f8;
+  --border:#dde1e6;
+  --text:#1b1e23;
+  --text-dim:#68707c;
+  --accent:#2563eb;
+  --accent-soft:rgba(37,99,235,.12);
+  --hover:rgba(0,0,0,.05);
+  --shadow:0 8px 30px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ---------- 顶部工具栏 ---------- */
+#toolbar{
+  display:flex;align-items:center;gap:6px;
+  height:54px;padding:0 12px;flex:0 0 auto;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  user-select:none;
+}
+#toolbar .spacer{flex:1 1 auto}
+#title{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+#title .t1{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#title .t2{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;
+  background:transparent;color:var(--text);transition:background .15s,color .15s;flex:0 0 auto;
+}
+.btn:hover{background:var(--hover)}
+.btn:active{background:var(--accent-soft)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.divider{width:1px;height:24px;background:var(--border);margin:0 4px;flex:0 0 auto}
+#page-group{display:flex;align-items:center;gap:6px}
+#page-input{
+  width:52px;height:32px;text-align:center;border:1px solid var(--border);
+  border-radius:7px;background:var(--panel-2);color:var(--text);font-size:13px;outline:none;
+}
+#page-input:focus{border-color:var(--accent)}
+#page-total{font-size:13px;color:var(--text-dim);white-space:nowrap}
+#zoom-label{font-size:12.5px;color:var(--text-dim);min-width:46px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ---------- 主体：侧栏 + 阅读区 ---------- */
+#main{flex:1 1 auto;display:flex;min-height:0}
+#sidebar{
+  width:280px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  transition:margin-left .25s ease;
+}
+#sidebar.collapsed{margin-left:-280px}
+#sidebar-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex:0 0 auto}
+#sidebar-head .lbl{font-size:13px;font-weight:600;color:var(--text-dim);letter-spacing:.5px}
+#outline{flex:1 1 auto;overflow-y:auto;padding:6px 0}
+#outline::-webkit-scrollbar,#stage::-webkit-scrollbar{width:10px;height:10px}
+#outline::-webkit-scrollbar-thumb,#stage::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;border:2px solid transparent;background-clip:content-box}
+.ol-item{position:relative}
+.ol-row{
+  display:flex;align-items:center;gap:2px;padding:6px 14px 6px 0;cursor:pointer;
+  color:var(--text);font-size:13px;line-height:1.4;transition:background .12s;
+}
+.ol-row:hover{background:var(--hover)}
+.ol-row.current{background:var(--accent-soft);color:var(--accent)}
+.ol-toggle{width:18px;height:18px;flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);border-radius:4px}
+.ol-toggle svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.ol-toggle.open svg{transform:rotate(90deg)}
+.ol-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ol-children{overflow:hidden}
+.ol-children .ol-row{padding-left:14px;font-size:12.5px}
+.ol-empty{padding:20px 16px;color:var(--text-dim);font-size:13px}
+
+#stage-wrap{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--stage)}
+#stage{flex:1 1 auto;overflow:auto;display:flex;justify-content:center;padding:28px;position:relative}
+#stage-inner{position:relative;align-self:flex-start;margin:auto}
+#pdf-canvas{display:block;background:#fff;box-shadow:var(--shadow);border-radius:2px}
+#statusbar{
+  flex:0 0 auto;height:28px;display:flex;align-items:center;gap:14px;
+  padding:0 16px;background:var(--panel);border-top:1px solid var(--border);
+  font-size:12px;color:var(--text-dim);
+}
+
+/* ---------- 加载 / 错误遮罩 ---------- */
+#overlay{
+  position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;background:var(--bg);z-index:50;
+}
+.spinner{width:42px;height:42px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#overlay .msg{font-size:14px;color:var(--text-dim)}
+#overlay .err{font-size:14px;color:#e5484d;max-width:560px;text-align:center;line-height:1.7}
+#overlay .err code{display:block;margin-top:12px;font-size:12px;color:var(--text-dim);word-break:break-all}
+
+@media (max-width:760px){
+  #sidebar{position:absolute;z-index:40;height:100%;top:54px;left:0;box-shadow:var(--shadow)}
+  #title .t2{display:none}
+  .btn.hide-sm{display:none}
+  #stage{padding:14px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="toolbar">
+    <button class="btn" id="btn-sidebar" title="目录 (T)"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <div class="divider"></div>
+    <div id="title">
+      <span class="t1">机器学习笔记 · Machine Learning Notes</span>
+      <span class="t2">Chris Albon</span>
+    </div>
+    <div class="spacer"></div>
+
+    <button class="btn" id="btn-prev" title="上一页 (←)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div id="page-group">
+      <input id="page-input" type="text" inputmode="numeric" value="1" title="跳转页码">
+      <span id="page-total">/ —</span>
+    </div>
+    <button class="btn" id="btn-next" title="下一页 (→)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+
+    <div class="divider"></div>
+    <button class="btn" id="btn-zoom-out" title="缩小 (-)"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <span id="zoom-label">适应宽度</span>
+    <button class="btn" id="btn-zoom-in" title="放大 (+)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="btn" id="btn-fit-width" title="适应宽度 (0)"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 18h16M9 6v12M15 6v12"/></svg></button>
+    <button class="btn" id="btn-fit-page" title="适应页面"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/></svg></button>
+
+    <div class="divider"></div>
+    <button class="btn hide-sm" id="btn-fullscreen" title="全屏 (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <a class="btn hide-sm" id="btn-download" href="Machine-Learning-Notes-Chris-Albon.pdf" download title="下载 PDF"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></a>
+    <button class="btn" id="btn-theme" title="切换明暗主题"><svg viewBox="0 0 24 24"><path d="M12 3v1M12 20v1M4.2 4.2l.7.7M19.1 19.1l.7.7M3 12h1M20 12h1M4.2 19.8l.7-.7M19.1 4.9l.7-.7"/><circle cx="12" cy="12" r="4.5"/></svg></button>
+  </header>
+
+  <div id="main">
+    <aside id="sidebar">
+      <div id="sidebar-head"><span class="lbl">目录</span><span class="lbl" id="ol-count" style="margin-left:auto"></span></div>
+      <div id="outline"><div class="ol-empty">加载目录中…</div></div>
+    </aside>
+
+    <div id="stage-wrap">
+      <div id="stage"><div id="stage-inner"><canvas id="pdf-canvas"></canvas></div></div>
+      <div id="statusbar">
+        <span id="status-page">第 1 页</span>
+        <span id="status-size"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="spinner" id="ov-spinner"></div>
+  <div class="msg" id="ov-msg">正在加载阅读器…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+(function(){
+'use strict';
+var PRIMARY = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+var FALLBACK = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+var PDF_URL = 'Machine-Learning-Notes-Chris-Albon.pdf';
+var base = PRIMARY;
+
+var els = {
+  canvas: document.getElementById('pdf-canvas'),
+  stage: document.getElementById('stage'),
+  overlay: document.getElementById('overlay'),
+  ovMsg: document.getElementById('ov-msg'),
+  ovSpinner: document.getElementById('ov-spinner'),
+  pageInput: document.getElementById('page-input'),
+  pageTotal: document.getElementById('page-total'),
+  statusPage: document.getElementById('status-page'),
+  statusSize: document.getElementById('status-size'),
+  zoomLabel: document.getElementById('zoom-label'),
+  outline: document.getElementById('outline'),
+  olCount: document.getElementById('ol-count'),
+  sidebar: document.getElementById('sidebar'),
+  btnSidebar: document.getElementById('btn-sidebar'),
+  btnPrev: document.getElementById('btn-prev'),
+  btnNext: document.getElementById('btn-next'),
+  btnZoomIn: document.getElementById('btn-zoom-in'),
+  btnZoomOut: document.getElementById('btn-zoom-out'),
+  btnFitWidth: document.getElementById('btn-fit-width'),
+  btnFitPage: document.getElementById('btn-fit-page'),
+  btnFullscreen: document.getElementById('btn-fullscreen'),
+  btnTheme: document.getElementById('btn-theme')
+};
+
+var ctx = els.canvas.getContext('2d');
+var pdfDoc = null;
+var numPages = 0;
+var curPage = 1;
+var mode = 'fit-width';   // 'fit-width' | 'fit-page' | 'custom'（横版默认适应宽度）
+var scale = 1;
+var renderTask = null;
+var baseViewport = null;
+var olItems = [];
+
+function fatal(msg){
+  els.ovSpinner.style.display = 'none';
+  els.ovMsg.className = 'err';
+  els.ovMsg.innerHTML = msg;
+}
+
+/* ---------- 渲染 ---------- */
+function computeScale(){
+  if (mode === 'custom') return scale;
+  var pad = 56; // 2 × 28px
+  var aw = els.stage.clientWidth - pad;
+  var ah = els.stage.clientHeight - pad;
+  if (aw <= 0 || ah <= 0) return 1;
+  if (!baseViewport) return 1;
+  if (mode === 'fit-page'){
+    return Math.min(aw / baseViewport.width, ah / baseViewport.height);
+  }
+  return aw / baseViewport.width; // fit-width
+}
+
+function updateZoomLabel(){
+  if (mode === 'fit-width') els.zoomLabel.textContent = '适应宽度';
+  else if (mode === 'fit-page') els.zoomLabel.textContent = '适应页面';
+  else els.zoomLabel.textContent = Math.round(scale * 100) + '%';
+}
+
+function render(){
+  if (!pdfDoc) return;
+  if (renderTask){ renderTask.cancel(); renderTask = null; }
+  pdfDoc.getPage(curPage).then(function(page){
+    baseViewport = page.getViewport({ scale: 1 });
+    var s = computeScale();
+    var vp = page.getViewport({ scale: s });
+    var dpr = window.devicePixelRatio || 1;
+    var w = Math.floor(vp.width), h = Math.floor(vp.height);
+    els.canvas.width = Math.floor(vp.width * dpr);
+    els.canvas.height = Math.floor(vp.height * dpr);
+    els.canvas.style.width = w + 'px';
+    els.canvas.style.height = h + 'px';
+    var transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+    renderTask = page.render({ canvasContext: ctx, viewport: vp, transform: transform });
+    renderTask.promise.then(function(){
+      renderTask = null;
+      els.statusSize.textContent = Math.round(w) + ' × ' + Math.round(h) + ' px';
+    }).catch(function(){ /* 渲染被取消 */ });
+
+    els.pageInput.value = curPage;
+    els.statusPage.textContent = '第 ' + curPage + ' 页';
+    els.btnPrev.disabled = (curPage <= 1);
+    els.btnNext.disabled = (curPage >= numPages);
+    updateZoomLabel();
+    highlightOutline();
+  }).catch(function(e){ fatal('页面渲染失败：' + e.message); });
+}
+
+function goToPage(n){
+  if (!pdfDoc) return;
+  if (n < 1) n = 1;
+  if (n > numPages) n = numPages;
+  if (n !== curPage){ curPage = n; render(); }
+}
+
+/* ---------- 缩放 ---------- */
+function setCustomScale(v){ mode = 'custom'; scale = Math.max(0.25, Math.min(6, v)); render(); }
+function zoomIn(){ setCustomScale(computeScale() * 1.2); }
+function zoomOut(){ setCustomScale(computeScale() / 1.2); }
+function fitWidth(){ mode = 'fit-width'; render(); }
+function fitPage(){ mode = 'fit-page'; render(); }
+
+/* ---------- 目录 ---------- */
+function buildOutline(items, parent, depth){
+  items.forEach(function(item){
+    var hasChild = item.items && item.items.length > 0;
+    var wrap = document.createElement('div');
+    wrap.className = 'ol-item';
+    var row = document.createElement('div');
+    row.className = 'ol-row';
+    if (depth > 0) row.style.paddingLeft = (14 + depth * 16) + 'px';
+
+    var toggle = document.createElement('span');
+    toggle.className = 'ol-toggle';
+    var childWrap = null;
+    if (hasChild){
+      toggle.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+      toggle.addEventListener('click', function(e){
+        e.stopPropagation();
+        toggle.classList.toggle('open');
+        childWrap.style.display = childWrap.style.display === 'none' ? '' : 'none';
+      });
+    }
+
+    var title = document.createElement('span');
+    title.className = 'ol-title';
+    title.textContent = item.title || '(未命名)';
+    title.title = item.title || '';
+
+    row.appendChild(toggle);
+    row.appendChild(title);
+    row.addEventListener('click', function(){ gotoDest(item.dest); });
+    wrap.appendChild(row);
+
+    if (hasChild){
+      childWrap = document.createElement('div');
+      childWrap.className = 'ol-children';
+      wrap.appendChild(childWrap);
+      buildOutline(item.items, childWrap, depth + 1);
+    }
+    parent.appendChild(wrap);
+    olItems.push({ el: row, dest: item.dest });
+  });
+}
+
+function gotoDest(dest){
+  if (!dest) return;
+  Promise.resolve().then(function(){
+    var d = dest;
+    if (typeof d === 'string') return pdfDoc.getDestination(d);
+    return d;
+  }).then(function(d){
+    if (d && d[0]) return pdfDoc.getPageIndex(d[0]);
+    return null;
+  }).then(function(idx){
+    if (typeof idx === 'number') goToPage(idx + 1);
+  }).catch(function(){ /* 忽略无效目标 */ });
+}
+
+function highlightOutline(){
+  olItems.forEach(function(o){
+    if (o.page === curPage) o.el.classList.add('current');
+    else o.el.classList.remove('current');
+  });
+}
+
+function loadOutline(){
+  pdfDoc.getOutline().then(function(outline){
+    els.outline.innerHTML = '';
+    olItems = [];
+    if (!outline || outline.length === 0){
+      els.outline.innerHTML = '<div class="ol-empty">本文档没有目录</div>';
+      return;
+    }
+    buildOutline(outline, els.outline, 0);
+    var pending = olItems.map(function(o){
+      return Promise.resolve().then(function(){
+        var d = o.dest;
+        if (typeof d === 'string') return pdfDoc.getDestination(d);
+        return d;
+      }).then(function(d){
+        if (d && d[0]) return pdfDoc.getPageIndex(d[0]);
+        return null;
+      }).then(function(idx){
+        if (typeof idx === 'number') o.page = idx + 1;
+      }).catch(function(){});
+    });
+    Promise.all(pending).then(function(){
+      els.olCount.textContent = olItems.length + ' 条';
+      highlightOutline();
+    });
+  }).catch(function(){ els.outline.innerHTML = '<div class="ol-empty">目录读取失败</div>'; });
+}
+
+/* ---------- 主题 ---------- */
+function applyTheme(t){
+  document.documentElement.classList.toggle('light', t === 'light');
+  try{ localStorage.setItem('pdf-reader-theme', t); }catch(e){}
+}
+
+/* ---------- 全屏 ---------- */
+function toggleFullscreen(){
+  if (!document.fullscreenElement){
+    var el = document.documentElement;
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (fn) fn.call(el);
+  } else {
+    var ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (ex) ex.call(document);
+  }
+}
+
+/* ---------- 事件 ---------- */
+function bindEvents(){
+  els.btnPrev.addEventListener('click', function(){ goToPage(curPage - 1); });
+  els.btnNext.addEventListener('click', function(){ goToPage(curPage + 1); });
+  els.btnZoomIn.addEventListener('click', zoomIn);
+  els.btnZoomOut.addEventListener('click', zoomOut);
+  els.btnFitWidth.addEventListener('click', fitWidth);
+  els.btnFitPage.addEventListener('click', fitPage);
+  els.btnFullscreen.addEventListener('click', toggleFullscreen);
+  els.btnTheme.addEventListener('click', function(){
+    applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light');
+  });
+  els.btnSidebar.addEventListener('click', function(){ els.sidebar.classList.toggle('collapsed'); });
+
+  els.pageInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){
+      var n = parseInt(els.pageInput.value, 10);
+      if (!isNaN(n)) goToPage(n);
+      else els.pageInput.value = curPage;
+    }
+  });
+  els.pageInput.addEventListener('blur', function(){ els.pageInput.value = curPage; });
+
+  window.addEventListener('keydown', function(e){
+    if (e.target === els.pageInput) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch(e.key){
+      case 'ArrowRight': case 'PageDown': case ' ': goToPage(curPage + 1); e.preventDefault(); break;
+      case 'ArrowLeft':  case 'PageUp': goToPage(curPage - 1); e.preventDefault(); break;
+      case '+': case '=': zoomIn(); e.preventDefault(); break;
+      case '-': case '_': zoomOut(); e.preventDefault(); break;
+      case '0': fitWidth(); break;
+      case 'Home': goToPage(1); break;
+      case 'End': goToPage(numPages); break;
+      case 'f': case 'F': toggleFullscreen(); break;
+      case 't': case 'T': els.sidebar.classList.toggle('collapsed'); break;
+    }
+  });
+
+  els.canvas.addEventListener('dblclick', toggleFullscreen);
+
+  var rt = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){ if (mode !== 'custom') render(); }, 150);
+  });
+
+  els.stage.addEventListener('wheel', function(e){
+    if (e.ctrlKey || e.metaKey){
+      e.preventDefault();
+      if (e.deltaY < 0) zoomIn(); else zoomOut();
+    }
+  }, { passive: false });
+}
+
+/* ---------- 启动 ---------- */
+function start(){
+  bindEvents();
+  try{ applyTheme(localStorage.getItem('pdf-reader-theme') || 'dark'); }
+  catch(e){ applyTheme('dark'); }
+
+  if (!window.pdfjsLib){
+    fatal('无法加载 PDF.js 库（jsdelivr 与 cdnjs 均不可用）。请检查网络后刷新。');
+    return;
+  }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+
+  els.ovMsg.textContent = '正在加载 PDF（约 32 MB）…';
+  window.pdfjsLib.getDocument({ url: PDF_URL }).promise.then(function(doc){
+    pdfDoc = doc;
+    numPages = doc.numPages;
+    els.pageTotal.textContent = '/ ' + numPages;
+    els.statusPage.textContent = '第 1 页';
+    els.btnPrev.disabled = true;
+    loadOutline();
+    render();
+    els.overlay.style.display = 'none';
+  }).catch(function(e){
+    fatal('无法加载 PDF 文件「' + PDF_URL + '」。<br>请确认该文件与 index.html 位于同一目录，并通过 HTTP 服务访问（而非直接双击打开）。<code>' + (e && e.message ? e.message : e) + '</code>');
+  });
+}
+
+function ensureLib(){
+  if (window.pdfjsLib){ start(); return; }
+  base = FALLBACK;
+  var s = document.createElement('script');
+  s.src = FALLBACK + 'pdf.min.js';
+  s.async = true;
+  s.onload = function(){ start(); };
+  s.onerror = function(){ fatal('无法加载 PDF.js 库（jsdelivr 与 cdnjs 均不可用）。'); };
+  document.head.appendChild(s);
+}
+
+// 本脚本位于 body 末尾，DOM 已就绪，直接启动
+ensureLib();
+})();
+</script>
+</body>
+</html>
